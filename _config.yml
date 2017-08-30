@@ -1,7 +1,7 @@
 # Site
 title:              yukiiris
-bio:                'Minimal, one column jekyll theme.'
-description:        "少说话多读书"
+bio:                '少说话，多读书。'
+description:        "少说话，多读书"
 reading_time:       true
 words_per_minute:   200
 logo:               'assets/img/logo.png'
