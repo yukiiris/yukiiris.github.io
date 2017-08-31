@@ -1,6 +1,6 @@
 ---
 layout: post
-title: "spring配置文件详解"
+title: "spring学习笔记（三）"
 date: 2017-08-01
 excerpt: "各种乱七八糟的配置是我觉得spring入门最难的地方"
 tags: [Java, spring]
