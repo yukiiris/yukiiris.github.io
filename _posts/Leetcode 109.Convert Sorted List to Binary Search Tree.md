@@ -1,0 +1,54 @@
+## Leetcode 109.Convert Sorted List to Binary Search Tree
+
+#### 题目：
+
+Given a singly linked list where elements are sorted in ascending order, convert it to a height balanced BST.
+
+For this problem, a height-balanced binary tree is defined as a binary tree in which the depth of the two subtrees of *every* node never differ by more than 1.
+
+#### 示例：
+
+```
+Given the sorted linked list: [-10,-3,0,5,9],
+
+One possible answer is: [0,-3,9,-10,null,5], which represents the following height balanced BST:
+
+      0
+     / \
+   -3   9
+   /   /
+ -10  5
+```
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; &nbsp;&nbsp;由于链表的值是顺序排列的，自然可以想的到用递归二分地构造BST，因为数组的长度非奇即偶，所以结点深度相差不会超过一。那么先取到链表的最中间元素作为根节点，再取前半部分以同样过程构造左子树，后半部分构造右子树即可。因为之前写过数组转BST，所以直接将链表转为数组再转为BST。
+
+```java
+public TreeNode sortedListToBST(ListNode head)
+{
+    if (head == null)
+    {
+        return null;
+    }
+    ListNode p = head;
+    List<Integer> list = new ArrayList<Integer>();
+    while (p != null)
+    {
+        list.add(p.val);
+        p = p.next;
+    }
+    return f(list.stream().filter(t -> t != null).mapToInt(t -> 			t).toArray(), 0, list.size() - 1);
+}
+TreeNode f(int a[], int start, int end)
+{
+    if (start > end)
+    {
+        return null;
+    }
+    int mid = start + (end - start) / 2;
+    TreeNode node = new TreeNode(a[mid]);
+    node.left = f(a, start, mid - 1);
+    node.right = f(a, mid + 1, end);
+    return node;
+}
+```
+
