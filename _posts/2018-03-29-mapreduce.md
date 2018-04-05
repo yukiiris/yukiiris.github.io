@@ -11,9 +11,19 @@ comments: true
 
 ## MIT 6.824 Lab1 MapReduce
 
+###简介 
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;**MapReduce**是Google提出的一个软件架构，用于大规模数据集（大于1TB）的并行运算。概念“Map（映射）”和“Reduce（归纳）”。
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;当前的软件实现是指定一个*Map（映射）*函数，用来把一组键值对映射成一组新的键值对，指定并发的*Reduce（归纳）*函数，用来保证所有映射的键值对中的每一个共享相同的键组。
+
+---
+
 ### Part I: Map/Reduce input and output
 
-+ domap方法的任务：它读入输入文件，对内容调用用户定义的map方法mapF()，然后将mapF的输出分割成nReduce个中间文件。
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;在这个part中，需要扩展common_map.go的doMap()和在common_reduce中的doReduce()。具体如下：
+
++ doMap方法的任务：它读入输入文件，对内容调用用户定义的map方法mapF()，然后将mapF的输出分割成nReduce个中间文件。
 + 每个reduce任务都有一个中间文件，用reduceName()生成文件名。为每个键调用ihash()并模除 nReduce，为键值对选择r。
 + mapF()是用户提供的方法，它为reduce返回一个包含一个键值对的切片。
 + doreduce方法的任务：它为任务读出中间文件，通过键为这些中间键值对排序，为每个键调用用户定义的reduceF方法，将结果写入硬盘。
@@ -23,11 +33,15 @@ comments: true
 
 ### Part II: Single-worker word count
 
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;这个part需要实现一个统计文档中出现单词数目的简单例子，具体如下：
+
 + mapF()方法将每个传入的内容分割为单词，用单词作为键，为每个单词创建一个KeyValue，值为"1”，表示这个单词出现了一次，将所有KeyValue作为一个切片返回。
 + redecuF()方法传入一个键和键对应的值数组，这个方法需要将所以mapF()中统计的次数相加，返回值数组的长度即可。
 
 
 ### Part III: Distributing MapReduce tasks
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;这个part需要用分布式的思想实现上一个part的内容，具体采用的是RPC调用和go的并发编程来实现。
 
 + schedule()在所给的阶段（map或reduce）启动和等待所有任。mapFIles参数决定map阶段输入文件的名字。nReduce参数是reduce任务的数量。
 
@@ -44,6 +58,6 @@ comments: true
 
 ### Part IV: Handling worker failures
 
-在这个环节中，你需要处理失败的线程。
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;在这个part中，需要处理失败的线程。
 
-一个RPC调用失败不意味着这个线程没有在执行这个任务，这可能是因为返回值丢失或者master线程的RPC调用超时了。因此，这可能会发生于两个worker收到相同任务，处理他，然后生成输出。两个map或reduce调用必须对同一个输入生成相同的输出，所以如果后续处理有时读取一个输出并且有时读取另一个输出，则不会有不一致。除此之外，MapReduce框架确保map方法和reduce方法自动输出：输出文件可能不存在也可能包含map或reduce方法的单个执行的全部输出。
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;一个RPC调用失败不意味着这个线程没有在执行这个任务，这可能是因为返回值丢失或者master线程的RPC调用超时了。因此，这可能会发生于两个worker收到相同任务，处理他，然后生成输出。两个map或reduce调用必须对同一个输入生成相同的输出，所以如果后续处理有时读取一个输出并且有时读取另一个输出，则不会有不一致。除此之外，MapReduce框架确保map方法和reduce方法自动输出：输出文件可能不存在也可能包含map或reduce方法的单个执行的全部输出。
