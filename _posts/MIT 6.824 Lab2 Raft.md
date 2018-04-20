@@ -6,23 +6,137 @@
 
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;这个系列的实验会实现一个有容错的存储键值对的系统。而在这个实验中，要扩展Raft——一个复制的状态机协议。
 
-一个复制服务通过将状态复制到多个服务器上来达成容错。就算有失败，复制使得服务能继续运行。
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;一个复制服务通过将状态复制到多个服务器上来达成容错。就算有失败，复制使得服务能继续运行。
 
-Raft管理服务的状态，
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Raft管理服务的状态，它还帮助服务选出失败以后应该到达的正确状态。Raft实现了一个有限状态机，它将客户请求组成一个叫做log的序列，确保所有的副本都同意log的内容。每个副本都按顺序处理log中客户的请求，将这些请求应用到副本服务状态的本地副本。因为所有可用的副本都看到相同的日志，它们就会同时处理相同的请求，因此会有相同的状态。如果一个服务器宕机有重启，Raft负责为这些服务器更新日志。只要有一个主服务器，Raft就会继续工作。
 
 ------
 
-### Part I: Map/Reduce input and output
+### Part 2A: Election
 
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;在这个part中，需要扩展common_map.go的doMap()和在common_reduce中的doReduce()。具体如下：
+#### 简介
 
-- doMap方法的任务：它读入输入文件，对内容调用用户定义的map方法mapF()，然后将mapF的输出分割成nReduce个中间文件。
-- 每个reduce任务都有一个中间文件，用reduceName()生成文件名。为每个键调用ihash()并模除 nReduce，为键值对选择r。
-- mapF()是用户提供的方法，它为reduce返回一个包含一个键值对的切片。
-- doreduce方法的任务：它为任务读出中间文件，通过键为这些中间键值对排序，为每个键调用用户定义的reduceF方法，将结果写入硬盘。
-- 你必须为每个map任务读出中间文件，reduceName方法为每个map任务产生文件名。
-- 你的domap方法将中间文件的键值对进行了编码，所以你需要解码。
-- reduceF方法由用户提供，你必须为每个不同的键以及它的所有值调用它。这个方法返回这些值应该对应的键。
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;在这个part中，需要实现Raft的选举算法，下面来详细介绍下Raft的领导者选举规则：
+
++ 整个服务器集群处在一个时间线上，时间以轮来计，每轮开始进行领导者选举，然后开始工作，直到领导者宕机，开始下一轮选举。
++ 若当前服务器在一定时间内没有收到领导者发来的heartbeat，它就认为此时没有领导者，它会发起一个选举，将term+1，并将自己作为候选人，然后使用RPC服务向其他服务器发送投票请求。这个timeout的时间是随机生成的，为了防止所有服务器同时超时，进入候选状态，最后没有领导者被选出。
++ 因为要成为领导者必须要有集群的全部日志，所以领导者的状态不能落后于跟随者，因此处于跟随者状态的服务器收到投票请求的时候，首先会比较自己和候选人的term，再比较最近命令的term和index，如果发现落后则拒绝，否则投票。
++ 若收到多个候选人的投票请求，按先到先投的原则。
++ 当本轮选举结束而没有领导者被选出时，各个服务器会分别timeout，进行下一轮选举，直到有一个领导者被选举出来。
+
+#### 重要方法的实现
+
+##### func (rf *Raft) electionDeamon()
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;这是领导者的选举线程，它一直循环，当发现跟随者超时时，将跟随者转换为候选者；当发现服务器的状态是候选者的时候，它将准备并向所有其他服务器发送投票请求，然后等待，检查结果。
+
+```go
+func (rf *Raft) electionDeamon() {
+	for {
+		switch rf.state {
+		case FOLLOWER:
+			select {
+			case <-time.After(time.Duration(rand.Int63()%330+550) * time.Millisecond):
+				rf.state = CANDIDATE
+				println("follower->candidate")
+			}
+		case LEADER:
+            //TODO 见下
+			time.Sleep(HEARTBEAT)
+		case CANDIDATE:
+			rf.mu.Lock()
+			defer rf.mu.Unlock()
+			rf.currentTerm++
+			rf.voteFor = rf.me
+			rf.voteCount++
+			rf.mu.Unlock()
+			println("send vote request")
+			go rf.sendAllVoteRequests()
+			//println("start select")
+			select {
+			case <-time.After(time.Duration(rand.Int63()%333+550) * time.Millisecond):
+			case <-rf.isLeader:
+				println("there is a leader")
+				rf.mu.Lock()
+				rf.state = LEADER
+				rf.nextIndex = make([]int, len(rf.peers))
+				rf.matchIndex = make([]int, len(rf.peers))
+				for i := range rf.peers {
+					rf.nextIndex[i] = rf.getLastIndex() + 1
+					rf.matchIndex[i] = 0
+				}
+				rf.mu.Unlock()
+			}
+		}
+	}
+}
+```
+
+---
+
+##### func (rf *Raft) sendAllVoteRequests()
+
+
+
+```go
+func (rf *Raft) sendAllVoteRequests() {
+	rf.mu.Lock()
+	args := new(RequestVoteArgs)
+	args.CandidateId = rf.me
+	args.LastLogIndex = rf.getLastIndex()
+	args.LastLogTerm = rf.getLastTerm()
+	args.Term = rf.currentTerm
+	rf.mu.Unlock()
+	for i := range rf.peers {
+		//println(rf.state == CANDIDATE)
+		if i != rf.me && rf.state == CANDIDATE {
+			go func(i int) {
+				var reply RequestVoteReply
+				rf.sendRequestVote(i, args, &reply)
+			}(i)
+		}
+	}
+	println("election end")
+}
+```
+
+
+
+#####func (rf *Raft) sendRequestVote(server int, args *RequestVoteArgs, reply *RequestVoteReply) bool
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;这是Raft的发送投票方法，它通过RPC调用RequestVote方法并检查结果。若候选者的轮落后于跟随者，则它将它的当前轮次加一，将自己转为跟随者；若成功获得选票，则它会统计获得选票，如果选票大于一半，则它就成为领导者。
+
+```go
+func (rf *Raft) sendRequestVote(server int, args *RequestVoteArgs, reply *RequestVoteReply) bool {
+	ok := rf.peers[server].Call("Raft.RequestVote", args, reply)
+	println("is vote: " + strconv.FormatBool(reply.VoteGranted))
+	rf.mu.Lock()
+	defer rf.mu.Unlock()
+	if ok {
+		term := rf.currentTerm
+		if rf.state != CANDIDATE {
+			return ok
+		}
+		if args.Term != term {
+			return ok
+		}
+		if reply.Term > term {
+			rf.currentTerm = reply.Term
+			rf.state = FOLLOWER
+			rf.voteFor = -1
+			rf.persist()
+		}
+		if reply.VoteGranted {
+			rf.voteCount++
+			if rf.state == CANDIDATE && rf.voteCount > len(rf.peers)/2 {
+				rf.state = FOLLOWER
+				rf.isLeader <- true
+			}
+		}
+	}
+	return ok
+}
+```
 
 ### Part II: Single-worker word count
 

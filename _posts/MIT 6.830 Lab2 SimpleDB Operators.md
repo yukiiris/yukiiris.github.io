@@ -1,15 +1,4 @@
----
-layout: post
-title: "MIT 6.830 Lab1 SimpleDB"
-date: 2018-04-08
-excerpt: "整理下思路"
-tags: [Database]
-comments: true
----
-
-
-
-## MIT 6.830 Lab1 SimpleDB
+## MIT 6.830 Lab2 SimpleDB Operators
 
 ### 简介
 
@@ -17,9 +6,10 @@ comments: true
 
 ------
 
-### 1.The Database Class
+### 1.Filter and Join
 
-&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;Database类提供数据库中的全局变量的访问方法，尤其是访问catalog（数据库中所有表的列表）、bufferpool（缓冲池）和日志文件的方法。
++ Filter：该运算符只返回满足Predicate类的tuple，该tuple被指定为其构造函数的一部分。因此他过滤了所有不匹配的tuple。
++ Join：该运算符联结两个tuple，它们由构造函数制定。这只需要一个简单的嵌套循环连接。
 
 ### 2. Fiels and Tuples
 
