@@ -74,34 +74,6 @@ func (rf *Raft) electionDeamon() {
 
 ---
 
-##### func (rf *Raft) sendAllVoteRequests()
-
-
-
-```go
-func (rf *Raft) sendAllVoteRequests() {
-	rf.mu.Lock()
-	args := new(RequestVoteArgs)
-	args.CandidateId = rf.me
-	args.LastLogIndex = rf.getLastIndex()
-	args.LastLogTerm = rf.getLastTerm()
-	args.Term = rf.currentTerm
-	rf.mu.Unlock()
-	for i := range rf.peers {
-		//println(rf.state == CANDIDATE)
-		if i != rf.me && rf.state == CANDIDATE {
-			go func(i int) {
-				var reply RequestVoteReply
-				rf.sendRequestVote(i, args, &reply)
-			}(i)
-		}
-	}
-	println("election end")
-}
-```
-
-
-
 #####func (rf *Raft) sendRequestVote(server int, args *RequestVoteArgs, reply *RequestVoteReply) bool
 
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;这是Raft的发送投票方法，它通过RPC调用RequestVote方法并检查结果。若候选者的轮落后于跟随者，则它将它的当前轮次加一，将自己转为跟随者；若成功获得选票，则它会统计获得选票，如果选票大于一半，则它就成为领导者。
@@ -135,6 +107,39 @@ func (rf *Raft) sendRequestVote(server int, args *RequestVoteArgs, reply *Reques
 		}
 	}
 	return ok
+}
+```
+
+---
+
+##### func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply)
+
+&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;这个服务器处理投票请求的方法。它按照规则判断候选者是否落后于自己，并决定是否给出选票。
+
+```go
+func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
+	// Your code here (2A, 2B).
+	rf.mu.Lock()
+	defer rf.mu.Unlock()
+	println("args.Term: " + strconv.Itoa(args.Term))
+	println("rf.Term: " + strconv.Itoa(rf.currentTerm))
+	reply.VoteGranted = false
+	if args.Term < rf.currentTerm {
+		reply.VoteGranted = false
+		reply.Term = rf.currentTerm
+	}
+
+	if args.Term > rf.currentTerm {
+		rf.currentTerm = args.Term
+		rf.state = FOLLOWER
+	}
+	reply.Term = rf.currentTerm
+	if (args.CandidateId == rf.voteFor) || args.Term > rf.currentTerm || (rf.getLastTerm() < args.LastLogTerm ||
+		(rf.getLastTerm() == args.LastLogTerm && rf.getLastIndex() <= args.LastLogIndex)) {
+		reply.VoteGranted = true
+		rf.voteFor = args.CandidateId
+		rf.state = FOLLOWER
+	}
 }
 ```
 
