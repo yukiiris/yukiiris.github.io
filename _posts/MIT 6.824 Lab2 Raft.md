@@ -171,3 +171,17 @@ func (rf *Raft) RequestVote(args *RequestVoteArgs, reply *RequestVoteReply) {
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;在这个part中，需要处理失败的线程。
 
 &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;一个RPC调用失败不意味着这个线程没有在执行这个任务，这可能是因为返回值丢失或者master线程的RPC调用超时了。因此，这可能会发生于两个worker收到相同任务，处理他，然后生成输出。两个map或reduce调用必须对同一个输入生成相同的输出，所以如果后续处理有时读取一个输出并且有时读取另一个输出，则不会有不一致。除此之外，MapReduce框架确保map方法和reduce方法自动输出：输出文件可能不存在也可能包含map或reduce方法的单个执行的全部输出。
+
+
+
+### 流程
+
+初始化各个服务器，配置初始参数，读取以前的配置（如果有的话），启动选举线程，启动执行命令线程。
+
+选举进程：若raft被关闭则关闭选举进程，若要重置时间则重置，若超时则启动投票线程。
+
+投票线程：先装填投票请求参数，然后用rpc发送投票请求，判断得到票数是否能使之成为leader，若成为则启动心跳线程。
+
+心跳线程：每隔一段时间启动一致性检查线程，然后休眠。
+
+一致性检查线程：如果这一个服务器的nextIndex，发送心跳包（空的附加日志）。
